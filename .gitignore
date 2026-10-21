@@ -64,3 +64,8 @@ Thumbs.db
 ehthumbs.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
+
+# Documentation implementation plans
+docs/
+docs/*.md
+
