@@ -488,6 +488,7 @@ function checkSessionStatus() {
   })
   .then(function(res) { return res.json(); })
   .then(function(data) {
+    console.log("[SAFE IDScan Check Status Response]:", data);
     if (data && data.status === 'error') {
       sessionValid = false;
       showSessionError(data.message || 'Record is either deleted or not found.');

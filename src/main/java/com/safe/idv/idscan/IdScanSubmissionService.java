@@ -78,6 +78,7 @@ public class IdScanSubmissionService {
       String json = MiniJson.write(req);
       log.info("Checking ID verification status for token {} at {}", token, this.checkStatusUrl);
       IdScanRegisterClient.RegisterResult r = this.client.post(this.checkStatusUrl, json, this.timeoutSeconds, this.authHeaderName, this.authHeaderValue);
+      log.info("check_status raw response from SAFE (HTTP {}, elapsed {}ms): {}", r.httpStatus, r.elapsedMs, r.body);
       if (!r.gotResponse()) {
          log.error("Failed to connect to check_status endpoint: {}", r.transportError);
          Map<String, Object> err = new LinkedHashMap<>();

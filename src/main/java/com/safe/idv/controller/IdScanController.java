@@ -4,6 +4,8 @@ import com.safe.idv.idscan.IdScanSubmissionService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/api/v1/idscan"})
 public class IdScanController {
+   private static final Logger log = LoggerFactory.getLogger(IdScanController.class);
    private final IdScanSubmissionService service;
 
    public IdScanController(IdScanSubmissionService service) {
@@ -30,7 +33,9 @@ public class IdScanController {
             token = String.valueOf(body.get("token"));
          }
       }
+      log.info("===> Incoming /api/v1/idscan/check_status request for token: {}", token);
       Map<String, Object> result = this.service.checkStatus(token);
+      log.info("<=== Response from /api/v1/idscan/check_status: {}", result);
       return ResponseEntity.ok(result);
    }
 
