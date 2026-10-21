@@ -1,5 +1,6 @@
 package com.safe.idv.idscan;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.safe.idv.config.ApiKeyService;
 import com.safe.idv.config.ServiceProviderConfig;
 import com.safe.idv.config.ServiceProviderOverride;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Service;
 public class IdScanSubmissionService {
    private static final Logger log = LoggerFactory.getLogger(IdScanSubmissionService.class);
    private final String registerUrl;
+   private final String checkStatusUrl;
    private final int timeoutSeconds;
    private final String authHeaderName;
    private final String authHeaderValue;
@@ -31,6 +33,7 @@ public class IdScanSubmissionService {
    private final boolean trustForwardedFor;
    private final boolean ocrEnabled;
    private final IdScanRegisterClient client = new IdScanRegisterClient();
+   private final ObjectMapper objectMapper = new ObjectMapper();
    private final IdScanCaseStore store;
    private final ApiKeyService apiKeyService;
    private final VisionProviderService visionProviderService;
@@ -38,8 +41,9 @@ public class IdScanSubmissionService {
    private final GeolocationService geolocationService;
    private final ExecutorService ocrExecutor = Executors.newFixedThreadPool(2);
 
-   public IdScanSubmissionService(@Value("${safe.idscan.register-url}") String registerUrl, @Value("${safe.idscan.timeout-seconds:60}") int timeoutSeconds, @Value("${safe.idscan.auth-header-name:}") String authHeaderName, @Value("${safe.idscan.auth-header-value:}") String authHeaderValue, @Value("${safe.idscan.device-signature-salt:}") String signatureSalt, @Value("${safe.idscan.trust-forwarded-for:false}") boolean trustForwardedFor, @Value("${safe.idscan.ocr-enabled:true}") boolean ocrEnabled, @Value("${safe.idscan.cases-dir:idscan-cases}") String casesDir, ApiKeyService apiKeyService, VisionProviderService visionProviderService, ServiceProviderConfig serviceProviderConfig, GeolocationService geolocationService) {
+   public IdScanSubmissionService(@Value("${safe.idscan.register-url}") String registerUrl, @Value("${safe.idscan.check-status-url:${safe.idscan.check_status_url:http://localhost:3002/api/id_verification/check_status}}") String checkStatusUrl, @Value("${safe.idscan.timeout-seconds:60}") int timeoutSeconds, @Value("${safe.idscan.auth-header-name:}") String authHeaderName, @Value("${safe.idscan.auth-header-value:}") String authHeaderValue, @Value("${safe.idscan.device-signature-salt:}") String signatureSalt, @Value("${safe.idscan.trust-forwarded-for:false}") boolean trustForwardedFor, @Value("${safe.idscan.ocr-enabled:true}") boolean ocrEnabled, @Value("${safe.idscan.cases-dir:idscan-cases}") String casesDir, ApiKeyService apiKeyService, VisionProviderService visionProviderService, ServiceProviderConfig serviceProviderConfig, GeolocationService geolocationService) {
       this.registerUrl = registerUrl.strip();
+      this.checkStatusUrl = checkStatusUrl != null ? checkStatusUrl.strip() : "http://localhost:3002/api/id_verification/check_status";
       this.timeoutSeconds = timeoutSeconds;
       this.authHeaderName = authHeaderName;
       this.authHeaderValue = authHeaderValue;
@@ -60,6 +64,38 @@ public class IdScanSubmissionService {
    @PreDestroy
    void shutdown() {
       this.ocrExecutor.shutdown();
+   }
+
+   public Map<String, Object> checkStatus(String token) {
+      if (token == null || token.isBlank()) {
+         Map<String, Object> err = new LinkedHashMap<>();
+         err.put("status", "error");
+         err.put("message", "magic_link_token is required");
+         return err;
+      }
+      Map<String, Object> req = new LinkedHashMap<>();
+      req.put("magic_link_token", token.strip());
+      String json = MiniJson.write(req);
+      log.info("Checking ID verification status for token {} at {}", token, this.checkStatusUrl);
+      IdScanRegisterClient.RegisterResult r = this.client.post(this.checkStatusUrl, json, this.timeoutSeconds, this.authHeaderName, this.authHeaderValue);
+      if (!r.gotResponse()) {
+         log.error("Failed to connect to check_status endpoint: {}", r.transportError);
+         Map<String, Object> err = new LinkedHashMap<>();
+         err.put("status", "error");
+         err.put("message", "Unable to connect to verification server. Please try again.");
+         return err;
+      }
+      try {
+         @SuppressWarnings("unchecked")
+         Map<String, Object> res = (Map<String, Object>) this.objectMapper.readValue(r.body, Map.class);
+         return res;
+      } catch (Exception e) {
+         log.error("Failed to parse check_status response (HTTP {}): {}", r.httpStatus, r.body, e);
+         Map<String, Object> err = new LinkedHashMap<>();
+         err.put("status", "error");
+         err.put("message", "Invalid response from verification server: " + r.body);
+         return err;
+      }
    }
 
    public Map submit(Map body, HttpServletRequest httpRequest) {

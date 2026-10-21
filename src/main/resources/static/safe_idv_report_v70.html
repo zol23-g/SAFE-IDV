@@ -771,6 +771,11 @@ async function callIdvEngine(selfieDataUrl) {
   const live = cfg.livenessSignals || {};
   const geo = live.captureGeolocation || {};
   const geoGranted = geo.status === 'granted';
+  let savedGeo = null;
+  try { savedGeo = JSON.parse(sessionStorage.getItem('SAFE_CAPTURED_GEO') || 'null'); } catch(e){}
+  const effectiveLat = geoGranted ? geo.lat : (savedGeo && savedGeo.latitude !== undefined && savedGeo.latitude !== null && savedGeo.latitude !== 'Denied' && savedGeo.latitude !== 'Not supported' ? savedGeo.latitude : null);
+  const effectiveLon = geoGranted ? geo.lon : (savedGeo && savedGeo.longitude !== undefined && savedGeo.longitude !== null && savedGeo.longitude !== 'Denied' && savedGeo.longitude !== 'Not supported' ? savedGeo.longitude : null);
+  const effectiveStatus = geoGranted ? geo.status : (effectiveLat !== null ? 'granted' : (geo.status || 'unavailable'));
   const camSettings = (cfg.captureSignals && cfg.captureSignals.device && cfg.captureSignals.device.settings) || {};
   const nav = navigator;
 
@@ -796,10 +801,10 @@ async function callIdvEngine(selfieDataUrl) {
     // Device GPS at capture time. Strings are built server-side; status lets
     // the JAR distinguish "denied/unavailable" from a real coordinate.
     gps: {
-      status: geo.status || 'unavailable',
-      latitude: geoGranted ? geo.lat : null,
-      longitude: geoGranted ? geo.lon : null,
-      accuracyMeters: geoGranted ? (geo.accuracy ?? null) : null,
+      status: effectiveStatus,
+      latitude: effectiveLat,
+      longitude: effectiveLon,
+      accuracyMeters: geoGranted ? (geo.accuracy ?? null) : (savedGeo && savedGeo.accuracy ? savedGeo.accuracy : null),
     },
     // Raw device signals. The JAR derives device_os_browser_info (parseable
     // JSON) and device_digital_signature (salted hash) from these; the raw

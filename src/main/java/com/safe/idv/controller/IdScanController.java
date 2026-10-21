@@ -20,6 +20,20 @@ public class IdScanController {
       this.service = service;
    }
 
+   @PostMapping({"/check_status"})
+   public ResponseEntity<?> checkStatus(@RequestBody(required = false) Map<String, Object> body) {
+      String token = null;
+      if (body != null) {
+         if (body.get("magic_link_token") != null) {
+            token = String.valueOf(body.get("magic_link_token"));
+         } else if (body.get("token") != null) {
+            token = String.valueOf(body.get("token"));
+         }
+      }
+      Map<String, Object> result = this.service.checkStatus(token);
+      return ResponseEntity.ok(result);
+   }
+
    @PostMapping({"/submit"})
    public ResponseEntity submit(@RequestBody Map body, HttpServletRequest request) {
       try {
